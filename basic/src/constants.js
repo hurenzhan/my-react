@@ -1,0 +1,1 @@
+export const REACT_TEXT = Symbol('REACT_TEXT'); // 定义个文本类型
