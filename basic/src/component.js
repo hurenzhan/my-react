@@ -19,11 +19,14 @@ class Updater {
     this.pendingStates = [];  // 等待生效的数组
     //this.callbacks = [];
   }
+  // 设置组件状态
   addState(partialState) {
     this.pendingStates.push(partialState);
     this.emitUpdate();// 触发更新
   }
-  emitUpdate() {
+  // 触发更新
+  emitUpdate(nextProps) { // nextProps：新的属性
+    this.nextProps = nextProps;
     //  有可能是批量异步更新，也有可能是同步更新
     if (updateQueue.isBatchingUpdate) {
       // 如果是批量更新，先加入队列
@@ -34,9 +37,9 @@ class Updater {
     }
   }
   updateComponent() {
-    const { classInstance, pendingStates } = this;
-    if (pendingStates.length > 0) {
-      shouldUpdate(classInstance, this.getState());
+    const { classInstance, nextProps, pendingStates } = this;
+    if (nextProps || pendingStates.length > 0) {  // 属性或者状态变了都会进入更新逻辑
+      shouldUpdate(classInstance, nextProps, this.getState());
     }
   }
 
@@ -56,9 +59,20 @@ class Updater {
 }
 
 //
-function shouldUpdate(classInstance, nextState) {
-  classInstance.state = nextState;//先把新状态赋值给实例的state
-  classInstance.forceUpdate();//强制更新
+function shouldUpdate(classInstance, nextProps, nextState) {
+  let willUpdate = true;//表示组件是否要更新
+
+  /* 生命周期-根据数据变化控制组件更新 */
+  if (!classInstance?.shouldComponentUpdate?.(nextProps, nextState)) willUpdate = false;  // 用户返回false说不需要重新render
+
+  /* 生命周期-将要更新组件 */
+  willUpdate && classInstance?.componentWillUpdate?.(); // 如果要更新，并且有componentWillUpdate方法，就执行它
+
+  //不管要不要更新组件，状态都要更新
+  if (nextProps) classInstance.props = nextProps;
+
+  classInstance.state = nextState; // 先把新状态赋值给实例的state
+  if (willUpdate) classInstance.forceUpdate();  // render节点
 }
 
 class Component {
@@ -76,13 +90,14 @@ class Component {
 
   // 根据新的属性状态计算新的要渲染的虚拟DOM
   forceUpdate() {
-    let oldRenderVdom = this.oldRenderVdom; // 上一次类组件 render 方法计算得到的虚拟DOM
-    //let oldDOM = oldRenderVdom.dom;
-    let oldDOM = findDOM(oldRenderVdom);  // 获取 oldRenderVdom 对应的真实DOM
+    const oldRenderVdom = this.oldRenderVdom; // 上一次类组件 render 方法计算得到的虚拟DOM
+    //const oldDOM = oldRenderVdom.dom;
+    const oldDOM = findDOM(oldRenderVdom);  // 获取 oldRenderVdom 对应的真实DOM
     //然后基于新的属性和状态，计算新的虚拟DOM
-    let newRenderVdom = this.render();  // 此时state更新了，拿到的就是使用新state的vdom
+    const newRenderVdom = this.render();  // 此时state更新了，拿到的就是使用新state的vdom
     compareTwoVdom(oldDOM.parentNode, oldRenderVdom, newRenderVdom);
     this.oldRenderVdom = newRenderVdom;
+    this?.componentDidUpdate?.(this.props, this.state); /* 生命周期-数据更新结束 */
   }
 }
 

@@ -1,4 +1,6 @@
 import {wrapToVdom} from './utils';
+import Component from './component';
+import {REACT_FORWARD_REF} from "./constants";
 
 /**
  * createElement('h1',null,'a','b');
@@ -28,7 +30,23 @@ function createElement(type, config, children) {
   return {type, ref, key, props}
 }
 
+// 创建ref对象
+function createRef() {
+  return {current: null};
+}
+
+// 包装成转发对象
+function forwardRef(render) {//TODO
+  return {
+    $$typeof: REACT_FORWARD_REF,
+    render //函数组件 TextInput(props, forwardRef)
+  }
+}
+
 const React = {
-  createElement
+  createElement,
+  Component,
+  createRef,
+  forwardRef,
 }
 export default React;
