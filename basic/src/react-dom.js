@@ -1,4 +1,4 @@
-import {REACT_FORWARD_REF, REACT_TEXT} from "./constants";
+import {MOVE, PLACEMENT, REACT_FORWARD_REF, REACT_FRAGMENT, REACT_TEXT} from "./constants";
 import {addEvent} from "./event";
 
 /**
@@ -43,6 +43,7 @@ export function createDOM(vdom) {
     if (props.children) { // 有子集就挂载自己下面
       let children = props.children;
       if (typeof children === 'object' && children.type) { // 说明这是一个React元素
+        children._mountIndex = 0; // diff中做下标用
         mount(children, dom);
       }
       if (Array.isArray(children)) {  // 集合就循环挂载
@@ -65,7 +66,7 @@ function mountForwardComponent(vdom) {
 
 // 处理类组件
 function mountClassComponent(vdom) {
-  const { type: ClassComponent, props, ref } = vdom;
+  const {type: ClassComponent, props, ref} = vdom;
   const classInstance = new ClassComponent(props);
   // 如果类组件的虚拟DOM有ref属性，那么就把类的实例赋给ref.current属性
   if (ref) ref.current = classInstance;
@@ -144,12 +145,82 @@ export function findDOM(vdom) {
 function updateChildren(parentDOM, oldVChildren, newVChildren) {
   oldVChildren = Array.isArray(oldVChildren) ? oldVChildren : oldVChildren ? [oldVChildren] : [];
   newVChildren = Array.isArray(newVChildren) ? newVChildren : newVChildren ? [newVChildren] : [];
-  let maxChildrenLength = Math.max(oldVChildren.length, newVChildren.length); // 取最大值以完全比较
-  for (let i = 0; i < maxChildrenLength; i++) {
-    // 看当前节点的下一个有没有节点
-    const nextVdom = oldVChildren.find((item, index) => index > i && item && findDOM(item));
-    compareTwoVdom(parentDOM, oldVChildren[i], newVChildren[i], findDOM(nextVdom));
-  }
+
+  /*
+  * 1 2 3 5
+  * 5
+  * 3 2 4 1
+  * [2->1, 4->2, 1->3]
+  * */
+
+  const keyedOldMap = {}; // 老元素映射
+  let lastPlacedIndex = 0; // 上一个不需要移动的老DOM节点的索引，小的移动，大的不动并更新索引
+  oldVChildren.forEach((oldVChild, index) => {  /* 1.初始化老元素映射 */
+    const oldKey = oldVChild.key || index;  // 如果提供了key,会使用key作为唯一标识，如果没有提供，会使用索引
+    keyedOldMap[oldKey] = oldVChild;
+  });
+
+  const patch = []; // 操作队列 移动、删除、插入
+  //循环新数组
+  newVChildren.forEach((newVChild, index) => {  /* 2.找出需要操作的元素 */
+    newVChild._mountIndex = index;//设置虚拟DOM的挂载索引为index
+    let newKey = newVChild.key || index;
+    let oldVChild = keyedOldMap[newKey];
+    if (oldVChild) {
+      //如果找到了，按理应该在此判断类型，省略....
+      //先执行更新虚拟DOM元素 在React15里 DOM的更新和DOM-DIFF放在一起进行的。
+      updateElement(oldVChild, newVChild);
+      if (oldVChild._mountIndex < lastPlacedIndex) {  // 小的向后移动，大的不动
+        patch.push({
+          type: MOVE,
+          oldVChild,
+          newVChild,
+          fromIndex: oldVChild._mountIndex,
+          toIndex: index
+        });
+      }
+      // 如果此节点被复用了，把它从map中删除
+      delete keyedOldMap[newKey];
+      lastPlacedIndex = Math.max(lastPlacedIndex, oldVChild._mountIndex);
+    } else {  // 没有找到可复用老节点
+      patch.push({
+        type: PLACEMENT,
+        newVChild,
+        toIndex: index
+      });
+    }
+  });
+
+  // 需要移动的oldChild
+  const moveChildList = patch.filter(action => action.type === MOVE).map(action => action.oldVChild);
+  // 把剩下没有匹配和需要移动的dom先删除，DOM元素只要还被引用，就并不会被销毁，实际还在是内存里
+  Object.values(keyedOldMap).concat(moveChildList).forEach(oldVChild => {
+    let currentDOM = findDOM(oldVChild);
+    currentDOM.parentNode.removeChild(currentDOM);
+  });
+
+  // 执行操作
+  patch.forEach(action => {
+    let {type, oldVChild, newVChild, fromIndex, toIndex} = action;
+    let childNodes = parentDOM.childNodes;  // 获取真实的子DOM元素的集合[3]
+    if (type === PLACEMENT) {
+      let newDOM = createDOM(newVChild);  // 根据虚拟DOM创建真实DOM
+      let childDOMNode = childNodes[toIndex]; // 找一下目标索引现在对应的真实DOM元素
+      if (childDOMNode) {//如果此位置 上已经 有DOM元素的，插入到它前面是
+        parentDOM.insertBefore(newDOM, childDOMNode);
+      } else {
+        parentDOM.appendChild(newDOM);//添加到最后就可以了
+      }
+    } else if (type === MOVE) {
+      let oldDOM = findDOM(oldVChild);//找到老的真实DOM 还可以把内存中的B取到，插入到指定的位置 B
+      let childDOMNode = childNodes[toIndex];//找一下目标索引现在对应的真实DOM元素
+      if (childDOMNode) {//如果此位置 上已经 有DOM元素的，插入到它前面是
+        parentDOM.insertBefore(oldDOM, childDOMNode);
+      } else {
+        parentDOM.appendChild(oldDOM);//添加到最后就可以了
+      }
+    }
+  });
 }
 
 // 类组件数据更新
@@ -164,7 +235,7 @@ function updateClassComponent(oldVdom, newVdom) {
 function updateFunctionComponent(oldVdom, newVdom) {
   const currentDOM = findDOM(oldVdom);
   const parentDOM = currentDOM.parentNode;
-  const { type, props } = newVdom;
+  const {type, props} = newVdom;
   const newRenderVdom = type(props);  // 执行新的函数获取newVdom
   compareTwoVdom(parentDOM, oldVdom.oldRenderVdom, newRenderVdom);  // 然后比较更新
   newVdom.oldRenderVdom = newRenderVdom;
@@ -185,8 +256,11 @@ function updateElement(oldVdom, newVdom) {
     updateChildren(currentDOM, oldVdom.props.children, newVdom.props.children); // 更新子节点
   } else if (typeof oldVdom.type === 'function') {
     if (oldVdom.type.isReactComponent) {  // 3.类组件
-      console.log(oldVdom, newVdom, 'oldVdom, newVdom');
       updateClassComponent(oldVdom, newVdom);
+    } else if (oldVdom.type === REACT_FRAGMENT) { // 4.片段
+      let currentDOM = newVdom.dom = findDOM(oldVdom);  // 片段没有属性，更新子元素就好
+      updateChildren(currentDOM, oldVdom.props.children, newVdom.props.children);
+      //此节点是下原生组件 span div而且 类型一样，说明可以复用老的dom节点
     } else { // 4.函数组件
       updateFunctionComponent(oldVdom, newVdom);
     }

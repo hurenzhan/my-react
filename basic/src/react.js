@@ -1,6 +1,6 @@
 import {wrapToVdom} from './utils';
 import Component from './component';
-import {REACT_FORWARD_REF} from "./constants";
+import {REACT_ELEMENT, REACT_FORWARD_REF, REACT_FRAGMENT} from "./constants";
 
 /**
  * createElement('h1',null,'a','b');
@@ -10,8 +10,8 @@ import {REACT_FORWARD_REF} from "./constants";
  * @param {*} children  儿子，有可能独生子(对象)，也可能是多个(数组)
  */
 function createElement(type, config, children) {
-  let ref;//可以通过 ref引用此元素
-  let key;//可以唯一标识一个子元素
+  let ref;  // 可以通过 ref引用此元素
+  let key;  // 可以唯一标识一个子元素
   if (config) {
     delete config.__source;
     delete config.__self;
@@ -27,7 +27,7 @@ function createElement(type, config, children) {
   } else {
     props.children = wrapToVdom(children);//children可能是React元素对象，也可能是一个字符串 数字 null undefined
   }
-  return {type, ref, key, props}
+  return {$$typeof: REACT_ELEMENT, type, ref, key, props}
 }
 
 // 创建ref对象
@@ -36,10 +36,10 @@ function createRef() {
 }
 
 // 包装成转发对象
-function forwardRef(render) {//TODO
+function forwardRef(render) {
   return {
     $$typeof: REACT_FORWARD_REF,
-    render //函数组件 TextInput(props, forwardRef)
+    render // 函数组件 TextInput(props, forwardRef)
   }
 }
 
@@ -48,5 +48,6 @@ const React = {
   Component,
   createRef,
   forwardRef,
+  Fragment: REACT_FRAGMENT,
 }
 export default React;
