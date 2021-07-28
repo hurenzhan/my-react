@@ -1,6 +1,6 @@
-import {wrapToVdom} from './utils';
+import {shallowEquals, wrapToVdom} from './utils';
 import Component from './component';
-import {REACT_ELEMENT, REACT_FORWARD_REF, REACT_FRAGMENT} from "./constants";
+import {REACT_CONTEXT, REACT_ELEMENT, REACT_FORWARD_REF, REACT_FRAGMENT, REACT_MEMO, REACT_PROVIDER} from "./constants";
 
 /**
  * createElement('h1',null,'a','b');
@@ -43,11 +43,45 @@ function forwardRef(render) {
   }
 }
 
+// 创建上下文
+function createContext() {
+  let context = {$$typeof: REACT_CONTEXT, _currentValue: null};
+  context.Provider = {
+    $$typeof: REACT_PROVIDER,
+    _context: context
+  }
+  context.Consumer = {
+    $$typeof: REACT_CONTEXT,
+    _context: context
+  }
+  return context;
+}
+
+// 给组件做浅对比，来觉得重新渲染
+class PureComponent extends Component {
+  shouldComponentUpdate(nextProps, nextState) {
+    //只要属性和状态对象，有任意一个属性变了，就会进行更新。如果全相等，才不更新
+    return !shallowEquals(this.props, nextProps) || !shallowEquals(this.state, nextState)
+  }
+}
+
+// 给函数做自动浅比较用
+function memo(type, compare = shallowEquals) {
+  return {
+    $$typeof: REACT_MEMO,
+    type,//函数组件
+    compare
+  }
+}
+
 const React = {
   createElement,
   Component,
   createRef,
   forwardRef,
   Fragment: REACT_FRAGMENT,
+  createContext,
+  PureComponent,
+  memo
 }
 export default React;
