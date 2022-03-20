@@ -1,6 +1,7 @@
 import {shallowEquals, wrapToVdom} from './utils';
 import Component from './component';
 import {REACT_CONTEXT, REACT_ELEMENT, REACT_FORWARD_REF, REACT_FRAGMENT, REACT_MEMO, REACT_PROVIDER} from "./constants";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState} from "./hooks";
 
 /**
  * createElement('h1',null,'a','b');
@@ -57,6 +58,11 @@ function createContext() {
   return context;
 }
 
+// 直接获取值就行
+function useContext(context) {
+  return context._currentValue;
+}
+
 // 给组件做浅对比，来觉得重新渲染
 class PureComponent extends Component {
   shouldComponentUpdate(nextProps, nextState) {
@@ -82,6 +88,13 @@ const React = {
   Fragment: REACT_FRAGMENT,
   createContext,
   PureComponent,
-  memo
+  memo,
+  useState,
+  useReducer,
+  useContext,
+  useMemo,
+  useCallback,
+  useEffect,
+  useLayoutEffect
 }
 export default React;

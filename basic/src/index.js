@@ -1,42 +1,41 @@
 import React from './react';
 import ReactDOM from './react-dom';
 
-class ClassCounter extends React.PureComponent{
-  render(){
-    console.log('ClassCounter render');
-    return <div>ClassCounter:{this.props.count}</div>
+function Counter() {
+  const [number, setNumber] = React.useState(0)
+  const handleClick = () => {
+    // setNumber(new Date().getTime())
+    setNumber(3)
   }
+
+  React.useEffect(() => {
+    console.log(11)
+    return () => {
+      console.log(22)
+    }
+  }, [number])
+
+  return (
+      <div>
+        <div onClick={handleClick}>{number}</div>
+        {number === 3 ? (<div>121</div>) : <Counter1/>}
+      </div>
+  )
 }
-function FunctionCounter(props){
-  console.log('FunctionCounter render');
-  return <div>FunctionCounter:{1}</div>
-}
-const MemoFunctionCounter = React.memo(FunctionCounter)
-class App extends React.Component{
-  state = {number:0}
-  amountRef = React.createRef()
-  handleClick = ()=>{
-    let nextNumber = this.state.number + (parseInt(this.amountRef.current.value));
-    this.setState({
-      number:nextNumber
-    });
+
+function Counter1() {
+  const [number, setNumber] = React.useState('test')
+  const handleClick = () => {
+    setNumber(new Date().getTime())
   }
-  render(){
-    return (
-        <div>
-          <ClassCounter count={this.state.number}/>
-          <MemoFunctionCounter />
-          <input ref={this.amountRef}/>
-          <button onClick={this.handleClick}>+</button>
-        </div>
-    )
-  }
+
+  React.useEffect(() => {
+    return () => {
+      console.log(333)
+    }
+  }, [])
+
+  return <div onClick={handleClick}>{number}</div>
 }
-ReactDOM.render(<App/>, document.getElementById('root'));
-/**
- {
-  $$typeof: Symbol(react.memo)，
-  compare: null,
-  type: ƒ FunctionCounter(props)
-}
- */
+
+ReactDOM.render(<Counter/>, document.getElementById('root'));

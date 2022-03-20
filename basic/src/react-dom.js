@@ -15,14 +15,16 @@ import {
   mountProvider
 } from "./handleComponent";
 import {updateProps} from "./handleUpdate";
+import {initHook} from "./hooks";
 
 /**
  * 把虚拟DOM变成真实DOM插入到容器内部
  * @param {*} vdom 虚拟DOM
- * @param {*} container 容器
+ * @param {*} parentDOM 容器
  */
-function render(vdom, container) {
-  mount(vdom, container);
+function render(vdom, parentDOM) {
+  mount(vdom, parentDOM);
+  initHook(parentDOM, vdom);  // 初始化hook，更新调度的根节点和索引
 }
 
 // 挂载
@@ -64,12 +66,11 @@ export function createDOM(vdom) {
   if (props) {
     updateProps(dom, {}, props); // 更新dom属性
     if (props.children) { // 有子集就挂载自己下面
-      let children = props.children;
+      const children = props.children;
       if (typeof children === 'object' && children.type) { // 说明这是一个React元素
         children._mountIndex = 0; // diff中做下标用
-        mount(children, dom);
-      }
-      if (Array.isArray(children)) {  // 集合就循环挂载
+        render(children, dom);
+      } else if (Array.isArray(children)) {  // 集合就循环挂载
         reconcileChildren(props.children, dom);
       }
     }
@@ -81,7 +82,10 @@ export function createDOM(vdom) {
 
 // 循环挂载多个子元素
 function reconcileChildren(childrenVdom, parentDOM) {
-  childrenVdom.forEach(childVdom => mount(childVdom, parentDOM));
+  childrenVdom.forEach((childVdom, index) => {
+    childVdom._mountIndex = index;
+    render(childVdom, parentDOM)
+  });
 }
 
 // 查找组件的真实dom
@@ -91,7 +95,8 @@ export function findDOM(vdom) {
     return vdom.dom;
   } else {
     //类组件 还是函数组件，他们虚拟DOM身上没有dom属性，但是oldRenderVdom
-    return findDOM(vdom.oldRenderVdom);
+    const renderVdom = vdom.classInstance ? vdom.classInstance.oldRenderVdom : vdom.oldRenderVdom;
+    return findDOM(renderVdom);
   }
 }
 
@@ -120,6 +125,7 @@ export function unMountVdom(vdom) {
 }
 
 const ReactDOM = {
-  render
+  render,
+  createPortal: render
 }
 export default ReactDOM;

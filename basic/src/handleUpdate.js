@@ -32,6 +32,11 @@ export function updateProps(dom, oldProps, newProps) {
       }
     }
   }
+  for(const key in oldProps){
+    if(!newProps.hasOwnProperty(key)){
+      dom[key] = null;
+    }
+  }
 }
 
 // 子节点更新
@@ -156,6 +161,8 @@ export function updateElement(oldVdom, newVdom) {
   if (oldVdom.type === REACT_TEXT) {
     if (oldVdom.props.content !== newVdom.props.content) {
       const currentDOM = newVdom.dom = findDOM(oldVdom);
+      console.log(oldVdom, 'oldVdom');
+      console.log(newVdom, 'newVdom');
       currentDOM.textContent = newVdom.props.content;//更新文本节点的内容为新的文本内容
     }
     // 2.此节点是下原生组件 span div而且 类型一样，说明可以复用老的dom节点
